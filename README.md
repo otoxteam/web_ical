@@ -3,7 +3,7 @@
 `web_ical` is an esay iCalendar Rust library. It’s goals are to read and write ics web files (Google Calendar, Airbnb Calendar and more) data in a developer-friendly way.
 
 # Examples 1
-```
+```rust
 extern crate web_ical;
 
 use web_ical::Calendar;
@@ -18,7 +18,7 @@ fn main() {
 }
 ```
 # Examples 2
-```
+```rust
 extern crate web_ical;
 
 use web_ical::Calendar;
