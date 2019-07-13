@@ -31,3 +31,68 @@ fn main() {
      println!("UTC now in a custom format is: {}", icals.events[0].dtsart.format("%a %b %e %T %Y"));
 }
 ```
+
+# Create an iCalendar
+Create your own iCalendar instance
+```rust
+let mut ical =  Calendar::create(
+    "-//My Business Inc//My Calendar 70.9054//EN",
+    "2.0",
+    "GREGORIAN",
+    "PUBLISH",
+    "example@gmail.com",
+    "America/New_York");
+``` 
+
+# Add events
+Add events to the calendar.
+
+```rust
+ let mut start_cal:  DateTime<Utc> = Utc::now();
+  let date_tz: DateTime<Utc> = Utc::now();
+ let start = date_tz.checked_add_signed(Duration::days(2));
+   
+ match start {
+       Some(x) => {
+              start_cal = x;
+       },
+       None => ()
+ }
+ let own_event = Events{ 
+                    
+                    dtsart:         start_cal,
+                    dtend:          start_cal,
+                    dtstamp:        date_tz,
+                    uid:            "786566jhjh5546@google.com".to_string(),
+                    created:        date_tz,
+                    description:    "The description".to_string(),
+                    last_modified:  date_tz,
+                    location:       "Homestead FL".to_string(),
+                    sequence:       0,
+                    status:         "CONFIRMED".to_string(),
+                    summary:        "My business (Not available)".to_string(),
+                    transp:         "OPAQUE".to_string()
+                    
+    };
+ let mut ical =  Calendar::create(
+                       "-//My Business Inc//My Calendar 70.9054//EN",
+                       "2.0",
+                       "GREGORIAN",
+                       "PUBLISH",
+                       "example@gmail.com",
+                       "America/New_York");
+ 
+ ical.add_event(own_event);
+ println!("{}", ical.events[0].summary);
+ 
+```
+
+ # iCalendar to a file
+Export iCalendar to a file.
+
+ ```rust
+  match ical.export_ics("ical.ics"){
+        Ok(_) => println!("OK"),
+        Err(_) => panic!("Err")
+    };
+ ```
