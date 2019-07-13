@@ -37,6 +37,10 @@ extern crate regex;
 use regex::RegexSet;
 use chrono::{DateTime, NaiveDateTime};
 use chrono::{Utc};
+use std::fs::File; 
+use std::io; 
+use std::io::prelude::*; 
+use std::path::Path;
 
 ///Convert datetime string to [`DateTime`](https://docs.rs/chrono/0.4.7/chrono/struct.DateTime.html) 
 /// 
@@ -61,7 +65,6 @@ pub fn convert_datetime(value: String, format: String) -> Result<DateTime<Utc>, 
 ///store all events from iCalendar.
 #[derive(Clone)]
 pub struct Events{
-    pub begin:          String,
     pub dtsart:         DateTime<Utc>,
     pub dtend:          DateTime<Utc>,
     pub dtstamp:        DateTime<Utc>,
@@ -73,8 +76,7 @@ pub struct Events{
     pub sequence:       u32,
     pub status:         String,
     pub summary:        String,
-    pub transp:         String,
-    pub end:            String
+    pub transp:         String
  }
  impl Events{
 ///Check if the events is all day.
@@ -86,20 +88,36 @@ pub struct Events{
                 false
             }
         }
+        pub fn empty() -> Events{
+            let no_timezone = NaiveDateTime::parse_from_str("20190630T130000Z", "%Y%m%dT%H%M%SZ").unwrap();
+            let date_tz: DateTime<Utc> = DateTime::from_utc(no_timezone, Utc);
+            Events{ 
+                                dtsart:         date_tz,
+                                dtend:          date_tz,
+                                dtstamp:        date_tz,
+                                uid:            "NULL".to_string(),
+                                created:        date_tz,
+                                description:    "NULL".to_string(),
+                                last_modified:  date_tz,
+                                location:       "NULL".to_string(),
+                                sequence:       0,
+                                status:         "NULL".to_string(),
+                                summary:        "NULL".to_string(),
+                                transp:         "NULL".to_string()
+                            }
+        }
  }
 
- ///store the iCalendar and set events to struct `Events`.
+ ///store the iCalendar and add events from struct `Events`.
  #[derive(Clone)]
  pub struct Calendar{
-    pub begin:          String,
     pub prodid:         String,
     pub version:        String,
     pub calscale:       String,
     pub method:         String,
     pub x_wr_calname:   String,
     pub x_wr_timezone:  String,
-    pub events:         Vec<Events>,
-    pub end:            String
+    pub events:         Vec<Events>
 }
 
 impl Calendar{
@@ -115,25 +133,8 @@ impl Calendar{
         }else{
             text_data = response_text.split("\n").collect::<Vec<_>>();
         }
-        let no_timezone = NaiveDateTime::parse_from_str("20190630T130000Z", "%Y%m%dT%H%M%SZ").unwrap();
-        let date_tz: DateTime<Utc> = DateTime::from_utc(no_timezone, Utc);
         let mut struct_even: Vec<Events> = Vec::new();
-        let mut even_temp = Events{ 
-                                begin:   "VEVENT".to_string(),
-                                dtsart:         date_tz,
-                                dtend:          date_tz,
-                                dtstamp:        date_tz,
-                                uid:            "NULL".to_string(),
-                                created:        date_tz,
-                                description:    "NULL".to_string(),
-                                last_modified:  date_tz,
-                                location:       "NULL".to_string(),
-                                sequence:       0,
-                                status:         "NULL".to_string(),
-                                summary:        "NULL".to_string(),
-                                transp:         "NULL".to_string(),
-                                end:            "VEVENT".to_string()
-                            };     
+        let mut even_temp = Events::empty();
         let mut prodid = String::new();
         let mut version = String::new();
         let mut calscale = String::new();
@@ -301,15 +302,168 @@ impl Calendar{
                     
                 }
                 Calendar{
-                    begin:          "VCALENDAR".to_string(),
                     prodid:         prodid,
                     version:        version,
                     calscale:       calscale,
                     method:         method,
                     x_wr_calname:   x_wr_calname,
                     x_wr_timezone:  x_wr_timezone,
-                    events:         struct_even,
-                    end:            "VCALENDAR".to_string()
+                    events:         struct_even
+
                 }
             } 
+///Create your own iCalendar instance
+/// # Create an iCalendar
+/// ```
+/// let mut ical =  Calendar::create(
+///                       "-//My Business Inc//My Calendar 70.9054//EN",
+///                       "2.0",
+///                       "GREGORIAN",
+///                       "PUBLISH",
+///                       "example@gmail.com",
+///                       "America/New_York");
+/// ```
+            pub fn create(prodid: &'static str, 
+                            version: &'static str,
+                            calscale: &'static str, 
+                            method: &'static str, 
+                            x_wr_calname: &'static str,
+                            x_wr_timezone: &'static str) -> Calendar{
+                
+                                
+                Calendar{
+                            prodid:         prodid.to_string(),
+                            version:        version.to_string(),
+                            calscale:       calscale.to_string(),
+                            method:         method.to_string(),
+                            x_wr_calname:   x_wr_calname.to_string(),
+                            x_wr_timezone:  x_wr_timezone.to_string(),
+                            events:         vec![]
+                            
+                    }
+                
+            }
+///Add events to the calendar.
+/// 
+/// # Add events
+/// ```
+/// let mut start_cal:  DateTime<Utc> = Utc::now();
+//  let date_tz: DateTime<Utc> = Utc::now();
+/// let start = date_tz.checked_add_signed(Duration::days(2));
+///   
+/// match start {
+///       Some(x) => {
+///              start_cal = x;
+///       },
+///       None => ()
+/// }
+/// let own_event = Events{ 
+///                    
+///                    dtsart:         start_cal,
+///                    dtend:          start_cal,
+///                    dtstamp:        date_tz,
+///                    uid:            "786566jhjh5546@google.com".to_string(),
+///                    created:        date_tz,
+///                    description:    "The description".to_string(),
+///                    last_modified:  date_tz,
+///                    location:       "Homestead FL".to_string(),
+///                    sequence:       0,
+///                    status:         "CONFIRMED".to_string(),
+///                    summary:        "My business (Not available)".to_string(),
+///                    transp:         "OPAQUE".to_string()
+///                    
+///    };
+/// let mut ical =  Calendar::create(
+///                       "-//My Business Inc//My Calendar 70.9054//EN",
+///                       "2.0",
+///                       "GREGORIAN",
+///                       "PUBLISH",
+///                       "example@gmail.com",
+///                       "America/New_York");
+/// 
+/// ical.add_event(own_event);
+/// println!("{}", ical.events[0].summary);
+/// 
+/// ```
+            pub fn add_event(&mut self, event: Events){
+                self.events.push(event);
+            }
+///Export iCalendar to a file.
+/// 
+/// # iCalendar to a file
+/// ```
+///  match ical.export_ics("ical.ics"){
+///        Ok(_) => println!("OK"),
+///        Err(_) => panic!("Err")
+///    };
+/// ```
+            pub fn export_ics(&self, path: &str) -> io::Result<(bool)> { 
+                let mut data = "BEGIN:VCALENDAR\r\n".to_string();
+                let path = Path::new(path);
+                let mut f = File::create(&path)?;
+                data.push_str("PRODID:");
+                data.push_str(&self.prodid);
+                data.push_str("\r\n");
+                data.push_str("CALSCALE:");
+                data.push_str(&self.calscale);
+                data.push_str("\r\n");
+                data.push_str("VERSION:");
+                data.push_str(&self.version);
+                data.push_str("\r\n");
+                data.push_str("METHOD:");
+                data.push_str(&self.method);
+                data.push_str("\r\n");
+                data.push_str("X-WR-CALNAME:");
+                data.push_str(&self.x_wr_calname);
+                data.push_str("\r\n");
+                data.push_str("X-WR-TIMEZONE:");
+                data.push_str(&self.x_wr_timezone);
+                data.push_str("\r\n");
+                for i in &self.events{
+                    data.push_str("BEGIN:VEVENT\r\n");
+                    data.push_str("DTSTART:");
+                    data.push_str(&i.dtsart.format("%Y%m%dT%H%M%SZ").to_string());
+                    data.push_str("\r\n");
+                    data.push_str("DTEND:");
+                    data.push_str(&i.dtend.format("%Y%m%dT%H%M%SZ").to_string());
+                    data.push_str("\r\n");
+                    data.push_str("DTSTAMP:");
+                    data.push_str(&i.dtstamp.format("%Y%m%dT%H%M%SZ").to_string());
+                    data.push_str("\r\n");
+                    data.push_str("UID:");
+                    data.push_str(&i.uid);
+                    data.push_str("\r\n");
+                    data.push_str("CREATED:");
+                    data.push_str(&i.created.format("%Y%m%dT%H%M%SZ").to_string());
+                    data.push_str("\r\n");
+                    data.push_str("DESCRIPTION:");
+                    data.push_str(&i.description);
+                    data.push_str("\r\n");
+                    data.push_str("LAST-MODIFIED:");
+                    data.push_str(&i.last_modified.format("%Y%m%dT%H%M%SZ").to_string());
+                    data.push_str("\r\n");
+                    data.push_str("LOCATION:");
+                    data.push_str(&i.location);
+                    data.push_str("\r\n");
+                    data.push_str("SEQUENCE:");
+                    data.push_str(&i.sequence.to_string());
+                    data.push_str("\r\n");
+                    data.push_str("STATUS:");
+                    data.push_str(&i.status);
+                    data.push_str("\r\n");
+                    data.push_str("SUMMARY:");
+                    data.push_str(&i.summary);
+                    data.push_str("\r\n");
+                    data.push_str("TRANSP:");
+                    data.push_str(&i.transp);
+                    data.push_str("\r\n");
+                    data.push_str("END:VEVENT\r\n");
+                    
+                }
+                data.push_str("END:VCALENDAR");
+                match f.write_all(data.as_bytes()){
+                    Ok(_) => Ok(true),
+                    Err(e) => Err(e),
+                }
+            }
         }
