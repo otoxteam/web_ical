@@ -380,6 +380,55 @@ impl Calendar {
     pub fn add_event(&mut self, event: Events) {
         self.events.push(event);
     }
+
+    /// Export iCalendar to any `Write` implementer.
+    ///
+    /// # iCalendar to stdout
+    /// ```
+    /// match ical.export_to()
+    /// ```
+    ///
+    pub fn export_to<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write!(writer, "BEGIN:VCALENDAR\r\n")?;
+        write!(writer, "PRODID:{}\r\n", &self.prodid)?;
+        write!(writer, "CALSCALE:{}\r\n", &self.calscale)?;
+        write!(writer, "VERSION:{}\r\n", &self.version)?;
+        write!(writer, "METHOD:{}\r\n", &self.method)?;
+        write!(writer, "X-WR-CALNAME:{}\r\n", &self.x_wr_calname)?;
+        write!(writer, "X-WR-TIMEZONE:{}\r\n", &self.x_wr_timezone)?;
+        write!(writer, "\r\n")?;
+        for i in &self.events {
+            write!(writer, "BEGIN:VEVENT\r\n")?;
+            write!(writer, "DTSTART:{}\r\n", &i.dtsart.format("%Y%m%dT%H%M%SZ"))?;
+            write!(writer, "DTEND:{}\r\n", &i.dtend.format("%Y%m%dT%H%M%SZ"))?;
+            write!(
+                writer,
+                "DTSTAMP:{}\r\n",
+                &i.dtstamp.format("%Y%m%dT%H%M%SZ")
+            )?;
+            write!(writer, "UID:{}\r\n", &i.uid)?;
+            write!(
+                writer,
+                "CREATED:{}\r\n",
+                &i.created.format("%Y%m%dT%H%M%SZ")
+            )?;
+            write!(writer, "DESCRIPTION:{}\r\n", &i.description)?;
+            write!(
+                writer,
+                "LAST-MODIFIED:{}\r\n",
+                &i.last_modified.format("%Y%m%dT%H%M%SZ")
+            )?;
+            write!(writer, "LOCATION:{}\r\n", &i.location)?;
+            write!(writer, "SEQUENCE:{}\r\n", &i.sequence)?;
+            write!(writer, "STATUS:{}\r\n", &i.status)?;
+            write!(writer, "SUMMARY:{}\r\n", &i.summary)?;
+            write!(writer, "TRANSP:{}\r\n", &i.transp)?;
+            write!(writer, "END:VEVENT\r\n")?;
+        }
+        write!(writer, "END:VCALENDAR")?;
+        Ok(())
+    }
+
     ///Export iCalendar to a file.
     ///
     /// # iCalendar to a file
