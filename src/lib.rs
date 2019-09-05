@@ -146,7 +146,6 @@ impl Calendar {
         for i in &text_data {
             let key_cal = i.split(":").next().expect("Could not find ':'").to_string();
             let value_cal = i.split(":").last().expect("Could not find ':'").to_string();
-            let mut string_key = String::new();
             let num_regex = RegexSet::new(&[
                 r"PRODID",
                 r"VERSION",
@@ -171,11 +170,11 @@ impl Calendar {
                 .into_iter()
                 .map(|match_idx| &num_regex.patterns()[match_idx])
                 .collect();
-            if matches.len() > 0 {
-                string_key = matches[0].to_string();
+            let string_key = if matches.len() > 0 {
+                matches[0].to_string()
             } else {
-                string_key = String::from(key_cal);
-            }
+                String::from(key_cal)
+            };
             match string_key.as_ref() {
                 "PRODID" => {
                     prodid = value_cal;
