@@ -384,7 +384,7 @@ impl Calendar {
     ///
     /// # iCalendar to stdout
     /// ```
-    /// match ical.export_to()
+    /// ical.export_to(&mut std::io::stdout()).expect("Could not export to stdout");
     /// ```
     ///
     pub fn export_to<W: Write>(&self, writer: &mut W) -> io::Result<()> {
