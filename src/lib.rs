@@ -396,7 +396,6 @@ impl Calendar {
         write!(writer, "METHOD:{}\r\n", &self.method)?;
         write!(writer, "X-WR-CALNAME:{}\r\n", &self.x_wr_calname)?;
         write!(writer, "X-WR-TIMEZONE:{}\r\n", &self.x_wr_timezone)?;
-        write!(writer, "\r\n")?;
         for i in &self.events {
             write!(writer, "BEGIN:VEVENT\r\n")?;
             write!(writer, "DTSTART:{}\r\n", &i.dtsart.format("%Y%m%dT%H%M%SZ"))?;
