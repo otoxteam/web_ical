@@ -32,11 +32,9 @@
 //!}
 //! ```
 extern crate chrono;
-extern crate regex;
 
 use chrono::Utc;
 use chrono::{DateTime, NaiveDateTime};
-use regex::RegexSet;
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
@@ -56,14 +54,15 @@ use std::path::Path;
 ///     Err(_) => (),
 ///}        
 ///```
-pub fn convert_datetime(value: String, format: String) -> Result<DateTime<Utc>, String> {
-    let no_timezone_aux = NaiveDateTime::parse_from_str(&value, &format).unwrap();
+fn convert_datetime(value: &str, format: &str) -> Result<DateTime<Utc>, String> {
+    let no_timezone_aux = NaiveDateTime::parse_from_str(value, format).unwrap();
     let date_tz_axu: DateTime<Utc> = DateTime::from_utc(no_timezone_aux, Utc);
     Ok(date_tz_axu)
 }
 
 ///store all events from iCalendar.
 #[derive(Clone)]
+// You should have called it Event, as it is only one event
 pub struct Events {
     pub dtsart: DateTime<Utc>,
     pub dtend: DateTime<Utc>,
@@ -78,15 +77,11 @@ pub struct Events {
     pub summary: String,
     pub transp: String,
 }
+
 impl Events {
     ///Check if the events is all day.
     pub fn is_all_day(&self) -> bool {
-        let dur = self.dtend.signed_duration_since(self.dtsart);
-        if dur.num_hours() >= 24 {
-            true
-        } else {
-            false
-        }
+        self.dtend.signed_duration_since(self.dtsart).num_hours() >= 24
     }
     pub fn empty() -> Events {
         let no_timezone =
@@ -123,17 +118,18 @@ pub struct Calendar {
 
 impl Calendar {
     ///Request HTTP or HTTPS to iCalendar url.
-    pub fn new(url: &'static str) -> Calendar {
-        let response_text = reqwest::get(url)
+    pub fn new(url: &str) -> Calendar {
+        let data = reqwest::get(url)
             .expect("Could not make request")
             .text()
             .expect("Could not read response");
-        let text_data: Vec<_>;
-        if response_text.contains("\r\n") {
-            text_data = response_text.split("\r\n").collect::<Vec<_>>();
-        } else {
-            text_data = response_text.split("\n").collect::<Vec<_>>();
-        }
+        Self::new_from_data(&data)
+    }
+
+    pub fn new_from_data(data: &str) -> Calendar {
+        let text_data = data
+            .split(if data.contains("\r\n") { "\r\n" } else { "\n" })
+            .collect::<Vec<_>>();
         let mut struct_even: Vec<Events> = Vec::new();
         let mut even_temp = Events::empty();
         let mut prodid = String::new();
@@ -143,39 +139,12 @@ impl Calendar {
         let mut x_wr_calname = String::new();
         let mut x_wr_timezone = String::new();
 
-        for i in &text_data {
-            let key_cal = i.split(":").next().expect("Could not find ':'").to_string();
-            let value_cal = i.split(":").last().expect("Could not find ':'").to_string();
-            let num_regex = RegexSet::new(&[
-                r"PRODID",
-                r"VERSION",
-                r"CALSCALE",
-                r"METHOD",
-                r"X-WR-CALNAME",
-                r"X-WR-TIMEZONE",
-                r"UID",
-                r"DESCRIPTION",
-                r"LOCATION",
-                r"SEQUENCE",
-                r"STATUS",
-                r"SUMMARY",
-                r"TRANSP",
-                r"DTSTAMP",
-                r"CREATED",
-                r"LAST-MODIFIED",
-            ])
-            .unwrap();
-            let matches: Vec<_> = num_regex
-                .matches(&key_cal)
-                .into_iter()
-                .map(|match_idx| &num_regex.patterns()[match_idx])
-                .collect();
-            let string_key = if matches.len() > 0 {
-                matches[0].to_string()
-            } else {
-                String::from(key_cal)
-            };
-            match string_key.as_ref() {
+        for i in text_data {
+            let mut iter = i.split(":");
+            let key_cal = iter.next().expect("Could not find ':'");
+            let value_cal = iter.last().expect("Could not find ':'").to_string();
+
+            match key_cal {
                 "PRODID" => {
                     prodid = value_cal;
                 }
@@ -215,82 +184,57 @@ impl Calendar {
                 "TRANSP" => {
                     even_temp.transp = value_cal;
                 }
-                "DTSTART" => {
-                    let result_obj_aux: Result<DateTime<Utc>, String>;
-                    result_obj_aux = convert_datetime(value_cal, "%Y%m%dT%H%M%SZ".to_string());
-                    match result_obj_aux {
-                        Ok(val) => {
-                            even_temp.dtsart = val;
-                        }
-                        Err(_) => (),
+                "DTSTART" => match convert_datetime(&value_cal, "%Y%m%dT%H%M%SZ") {
+                    Ok(val) => {
+                        even_temp.dtsart = val;
                     }
-                }
+                    Err(_) => (),
+                },
                 "DTSTART;VALUE=DATE" => {
-                    let aux_date = value_cal + &"T000000Z".to_string();
-                    let result_obj_aux: Result<DateTime<Utc>, String>;
-                    result_obj_aux = convert_datetime(aux_date, "%Y%m%dT%H%M%SZ".to_string());
-                    match result_obj_aux {
+                    let aux_date = value_cal + "T000000Z";
+                    match convert_datetime(&aux_date, "%Y%m%dT%H%M%SZ") {
                         Ok(val) => {
                             even_temp.dtsart = val;
                         }
                         Err(_) => (),
                     }
                 }
-                "DTEND" => {
-                    let result_obj_aux: Result<DateTime<Utc>, String>;
-                    result_obj_aux = convert_datetime(value_cal, "%Y%m%dT%H%M%SZ".to_string());
-                    match result_obj_aux {
-                        Ok(val) => {
-                            even_temp.dtend = val;
-                        }
-                        Err(_) => (),
+                "DTEND" => match convert_datetime(&value_cal, "%Y%m%dT%H%M%SZ") {
+                    Ok(val) => {
+                        even_temp.dtend = val;
                     }
-                }
+                    Err(_) => (),
+                },
                 "DTEND;VALUE=DATE" => {
-                    let time_cal = "T002611Z".to_string();
-                    let aux_date = value_cal + &time_cal;
-                    let result_obj_aux: Result<DateTime<Utc>, String>;
-                    result_obj_aux = convert_datetime(aux_date, "%Y%m%dT%H%M%SZ".to_string());
-                    match result_obj_aux {
+                    let time_cal = "T002611Z";
+                    let aux_date = value_cal + time_cal;
+                    match convert_datetime(&aux_date, "%Y%m%dT%H%M%SZ") {
                         Ok(val) => {
                             even_temp.dtend = val;
                         }
                         Err(_) => (),
                     }
                 }
-                "DTSTAMP" => {
-                    let result_obj_aux: Result<DateTime<Utc>, String>;
-                    result_obj_aux = convert_datetime(value_cal, "%Y%m%dT%H%M%SZ".to_string());
-                    match result_obj_aux {
-                        Ok(val) => {
-                            even_temp.dtstamp = val;
-                        }
-                        Err(_) => (),
+                "DTSTAMP" => match convert_datetime(&value_cal, "%Y%m%dT%H%M%SZ") {
+                    Ok(val) => {
+                        even_temp.dtstamp = val;
                     }
-                }
-                "CREATED" => {
-                    let result_obj_aux: Result<DateTime<Utc>, String>;
-                    result_obj_aux = convert_datetime(value_cal, "%Y%m%dT%H%M%SZ".to_string());
-                    match result_obj_aux {
-                        Ok(val) => {
-                            even_temp.created = val;
-                        }
-                        Err(_) => (),
+                    Err(_) => (),
+                },
+                "CREATED" => match convert_datetime(&value_cal, "%Y%m%dT%H%M%SZ") {
+                    Ok(val) => {
+                        even_temp.created = val;
                     }
-                }
-                "LAST-MODIFIED" => {
-                    let result_obj_aux: Result<DateTime<Utc>, String>;
-                    result_obj_aux = convert_datetime(value_cal, "%Y%m%dT%H%M%SZ".to_string());
-                    match result_obj_aux {
-                        Ok(val) => {
-                            even_temp.last_modified = val;
-                        }
-                        Err(_) => (),
+                    Err(_) => (),
+                },
+                "LAST-MODIFIED" => match convert_datetime(&value_cal, "%Y%m%dT%H%M%SZ") {
+                    Ok(val) => {
+                        even_temp.last_modified = val;
                     }
-                }
+                    Err(_) => (),
+                },
                 "END" if value_cal == "VEVENT" => {
-                    let even_clone = even_temp.clone();
-                    struct_even.push(even_clone);
+                    struct_even.push(even_temp.clone());
                 }
                 _ => (),
             }
@@ -317,12 +261,12 @@ impl Calendar {
     ///                       "America/New_York");
     /// ```
     pub fn create(
-        prodid: &'static str,
-        version: &'static str,
-        calscale: &'static str,
-        method: &'static str,
-        x_wr_calname: &'static str,
-        x_wr_timezone: &'static str,
+        prodid: &str,
+        version: &str,
+        calscale: &str,
+        method: &str,
+        x_wr_calname: &str,
+        x_wr_timezone: &str,
     ) -> Calendar {
         Calendar {
             prodid: prodid.to_string(),
