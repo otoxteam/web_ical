@@ -90,9 +90,13 @@ Add events to the calendar.
  # iCalendar to a file
 Export iCalendar to a file.
 
- ```rust
-  match ical.export_ics("ical.ics"){
-        Ok(_) => println!("OK"),
-        Err(_) => panic!("Err")
-    };
- ```
+```rust
+let mut file = std::fs::create("file.ics").expect("Could not create file");
+ical.export_to(&mut file).expect("Could not write to stdout");
+```
+
+# iCalendar to stdout
+
+```rust
+ical.export_to(&mut std::io::stdout()).expect("Could not write to stdout");
+```
