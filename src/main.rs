@@ -11,7 +11,7 @@ fn main() {
     //http://ical.mac.com/ical/US32Holidays.ics
     for ical in &icals.events {
         println!("Event: {}", ical.summary);
-        println!("Started: {}", ical.dtsart.format("%a, %e %b %Y - %T"));
+        println!("Started: {}", ical.dtstart.format("%a, %e %b %Y - %T"));
     }
 
     let mut start_cal: DateTime<Utc> = Utc::now();
@@ -26,7 +26,7 @@ fn main() {
     }
 
     let own_event = Events {
-        dtsart: start_cal,
+        dtstart: start_cal,
         dtend: start_cal,
         dtstamp: date_tz,
         uid: "786566jhjh5546@google.com".to_string(),

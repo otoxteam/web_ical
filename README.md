@@ -13,7 +13,7 @@ fn main() {
 
     for ical in &icals.events{
          println!("Event: {}", ical.summary);
-         println!("Started: {}", ical.dtsart.format("%a, %e %b %Y - %T"));
+         println!("Started: {}", ical.dtstart.format("%a, %e %b %Y - %T"));
     }
 }
 ```
@@ -25,10 +25,10 @@ use web_ical::Calendar;
 
 fn main() {
     let icals = Calendar::new("http://ical.mac.com/ical/US32Holidays.ics");
-     println!("UTC now is: {}", icals.events[0].dtsart); 
-     println!("UTC now in RFC 2822 is: {}", icals.events[0].dtsart.to_rfc2822()); 
-     println!("UTC now in RFC 3339 is: {}", icals.events[0].dtsart.to_rfc3339()); 
-     println!("UTC now in a custom format is: {}", icals.events[0].dtsart.format("%a %b %e %T %Y"));
+     println!("UTC now is: {}", icals.events[0].dtstart); 
+     println!("UTC now in RFC 2822 is: {}", icals.events[0].dtstart.to_rfc2822()); 
+     println!("UTC now in RFC 3339 is: {}", icals.events[0].dtstart.to_rfc3339()); 
+     println!("UTC now in a custom format is: {}", icals.events[0].dtstart.format("%a %b %e %T %Y"));
 }
 ```
 
@@ -60,7 +60,7 @@ Add events to the calendar.
  }
  let own_event = Events{ 
                     
-                    dtsart:         start_cal,
+                    dtstart:         start_cal,
                     dtend:          start_cal,
                     dtstamp:        date_tz,
                     uid:            "786566jhjh5546@google.com".to_string(),

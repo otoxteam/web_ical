@@ -13,7 +13,7 @@
 //!
 //!    for ical in &icals.events{
 //!         println!("Event: {}", ical.summary);
-//!         println!("Started: {}", ical.dtsart.format("%a, %e %b %Y - %T"));
+//!         println!("Started: {}", ical.dtstart.format("%a, %e %b %Y - %T"));
 //!    }
 //!}
 //! ```
@@ -25,10 +25,10 @@
 //!
 //!fn main() {
 //!    let icals = Calendar::new("http://ical.mac.com/ical/US32Holidays.ics");
-//!     println!("UTC now is: {}", icals.events[0].dtsart);
-//!     println!("UTC now in RFC 2822 is: {}", icals.events[0].dtsart.to_rfc2822());
-//!     println!("UTC now in RFC 3339 is: {}", icals.events[0].dtsart.to_rfc3339());
-//!     println!("UTC now in a custom format is: {}", icals.events[0].dtsart.format("%a %b %e %T %Y"));
+//!     println!("UTC now is: {}", icals.events[0].dtstart);
+//!     println!("UTC now in RFC 2822 is: {}", icals.events[0].dtstart.to_rfc2822());
+//!     println!("UTC now in RFC 3339 is: {}", icals.events[0].dtstart.to_rfc3339());
+//!     println!("UTC now in a custom format is: {}", icals.events[0].dtstart.format("%a %b %e %T %Y"));
 //!}
 //! ```
 extern crate chrono;
@@ -64,7 +64,7 @@ fn convert_datetime(value: &str, format: &str) -> Result<DateTime<Utc>, String> 
 #[derive(Clone)]
 // You should have called it Event, as it is only one event
 pub struct Events {
-    pub dtsart: DateTime<Utc>,
+    pub dtstart: DateTime<Utc>,
     pub dtend: DateTime<Utc>,
     pub dtstamp: DateTime<Utc>,
     pub uid: String,
@@ -81,14 +81,14 @@ pub struct Events {
 impl Events {
     ///Check if the events is all day.
     pub fn is_all_day(&self) -> bool {
-        self.dtend.signed_duration_since(self.dtsart).num_hours() >= 24
+        self.dtend.signed_duration_since(self.dtstart).num_hours() >= 24
     }
     pub fn empty() -> Events {
         let no_timezone =
             NaiveDateTime::parse_from_str("20190630T130000Z", "%Y%m%dT%H%M%SZ").unwrap();
         let date_tz: DateTime<Utc> = DateTime::from_utc(no_timezone, Utc);
         Events {
-            dtsart: date_tz,
+            dtstart: date_tz,
             dtend: date_tz,
             dtstamp: date_tz,
             uid: "NULL".to_string(),
@@ -186,7 +186,7 @@ impl Calendar {
                 }
                 "DTSTART" => match convert_datetime(&value_cal, "%Y%m%dT%H%M%SZ") {
                     Ok(val) => {
-                        even_temp.dtsart = val;
+                        even_temp.dtstart = val;
                     }
                     Err(_) => (),
                 },
@@ -194,7 +194,7 @@ impl Calendar {
                     let aux_date = value_cal + "T000000Z";
                     match convert_datetime(&aux_date, "%Y%m%dT%H%M%SZ") {
                         Ok(val) => {
-                            even_temp.dtsart = val;
+                            even_temp.dtstart = val;
                         }
                         Err(_) => (),
                     }
@@ -294,7 +294,7 @@ impl Calendar {
     /// }
     /// let own_event = Events{
     ///                    
-    ///                    dtsart:         start_cal,
+    ///                    dtstart:        start_cal,
     ///                    dtend:          start_cal,
     ///                    dtstamp:        date_tz,
     ///                    uid:            "786566jhjh5546@google.com".to_string(),
@@ -341,7 +341,11 @@ impl Calendar {
         write!(writer, "X-WR-TIMEZONE:{}\r\n", &self.x_wr_timezone)?;
         for i in &self.events {
             write!(writer, "BEGIN:VEVENT\r\n")?;
-            write!(writer, "DTSTART:{}\r\n", &i.dtsart.format("%Y%m%dT%H%M%SZ"))?;
+            write!(
+                writer,
+                "DTSTART:{}\r\n",
+                &i.dtstart.format("%Y%m%dT%H%M%SZ")
+            )?;
             write!(writer, "DTEND:{}\r\n", &i.dtend.format("%Y%m%dT%H%M%SZ"))?;
             write!(
                 writer,
@@ -380,7 +384,7 @@ impl Calendar {
     ///        Err(_) => panic!("Err")
     ///    };
     /// ```
-    pub fn export_ics(&self, path: &str) -> io::Result<(bool)> {
+    pub fn export_ics(&self, path: &str) -> io::Result<bool> {
         let mut data = "BEGIN:VCALENDAR\r\n".to_string();
         let path = Path::new(path);
         let mut f = File::create(&path)?;
@@ -405,7 +409,7 @@ impl Calendar {
         for i in &self.events {
             data.push_str("BEGIN:VEVENT\r\n");
             data.push_str("DTSTART:");
-            data.push_str(&i.dtsart.format("%Y%m%dT%H%M%SZ").to_string());
+            data.push_str(&i.dtstart.format("%Y%m%dT%H%M%SZ").to_string());
             data.push_str("\r\n");
             data.push_str("DTEND:");
             data.push_str(&i.dtend.format("%Y%m%dT%H%M%SZ").to_string());
