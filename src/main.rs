@@ -7,7 +7,7 @@ use web_ical::Calendar;
 use web_ical::Events;
 
 fn main() {
-    let icals = Calendar::new("http://ical.mac.com/ical/US32Holidays.ics");
+    let icals = Calendar::new("http://ical.mac.com/ical/US32Holidays.ics").unwrap();
     //http://ical.mac.com/ical/US32Holidays.ics
     for ical in &icals.events {
         println!("Event: {}", ical.summary);
@@ -18,11 +18,8 @@ fn main() {
     let date_tz: DateTime<Utc> = Utc::now();
     let start = date_tz.checked_add_signed(Duration::days(2));
 
-    match start {
-        Some(x) => {
-            start_cal = x;
-        }
-        None => (),
+    if let Some(x) = start {
+        start_cal = x;
     }
 
     let own_event = Events {
@@ -53,6 +50,6 @@ fn main() {
 
     match ical.export_ics("ical.ics") {
         Ok(_) => println!("OK"),
-        Err(_) => panic!("Err"),
+        Err(e) => panic!("Err: {}", e),
     };
 }
