@@ -9,7 +9,7 @@
 //!use web_ical::Calendar;
 //!
 //!fn main() {
-//!    let icals = Calendar::new("http://ical.mac.com/ical/US32Holidays.ics");
+//!    let icals = Calendar::new("http://ical.mac.com/ical/US32Holidays.ics").unwrap();
 //!
 //!    for ical in &icals.events{
 //!         println!("Event: {}", ical.summary);
@@ -33,6 +33,7 @@
 //! ```
 extern crate chrono;
 
+use anyhow::Context;
 use chrono::Utc;
 use chrono::{DateTime, NaiveDateTime};
 use std::fs::File;
@@ -52,12 +53,11 @@ use std::path::Path;
 ///             println!("{}", val);
 ///         },
 ///     Err(_) => (),
-///}        
+///}
 ///```
-fn convert_datetime(value: &str, format: &str) -> Result<DateTime<Utc>, String> {
-    let no_timezone_aux = NaiveDateTime::parse_from_str(value, format).unwrap();
-    let date_tz_axu: DateTime<Utc> = DateTime::from_utc(no_timezone_aux, Utc);
-    Ok(date_tz_axu)
+fn convert_datetime(value: &str, format: &str) -> anyhow::Result<DateTime<Utc>> {
+    let no_timezone_aux = NaiveDateTime::parse_from_str(value, format)?;
+    Ok(DateTime::from_utc(no_timezone_aux, Utc))
 }
 
 ///store all events from iCalendar.
@@ -116,21 +116,29 @@ pub struct Calendar {
     pub events: Vec<Events>,
 }
 
+macro_rules! assign_if_ok {
+    ($lvalue:expr, $rvalue:expr) => {
+        if let Ok(rvalue_ok) = $rvalue {
+            $lvalue = rvalue_ok;
+        }
+    };
+}
+
 impl Calendar {
     ///Request HTTP or HTTPS to iCalendar url.
-    pub fn new(url: &str) -> Calendar {
+    pub fn new(url: &str) -> anyhow::Result<Calendar> {
         let data = reqwest::get(url)
-            .expect("Could not make request")
+            .context("Could not make request")?
             .text()
-            .expect("Could not read response");
+            .context("Could not read response")?;
         Self::new_from_data(&data)
     }
 
-    pub fn new_from_data(data: &str) -> Calendar {
-        let text_data = data
-            .split(if data.contains("\r\n") { "\r\n" } else { "\n" })
-            .collect::<Vec<_>>();
+    ///Create a `Calendar` from text in memory.
+    pub fn new_from_data(data: &str) -> anyhow::Result<Calendar> {
+        let text_data = data.lines().collect::<Vec<_>>();
         let mut struct_even: Vec<Events> = Vec::new();
+
         let mut even_temp = Events::empty();
         let mut prodid = String::new();
         let mut version = String::new();
@@ -140,9 +148,20 @@ impl Calendar {
         let mut x_wr_timezone = String::new();
 
         for i in text_data {
-            let mut iter = i.split(":");
-            let key_cal = iter.next().expect("Could not find ':'");
-            let value_cal = iter.last().expect("Could not find ':'").to_string();
+            let kv = i.splitn(2, ':').collect::<Vec<_>>();
+
+            if kv.len() != 2 {
+                // FIXME: it would be nice if multiline values were supported,
+                // which would require a different parsing strategy than
+                // assuming KEY:VALUE\n as we're currently doing.
+                log::warn!("Could not find ':' in '{}, discarding line", i);
+                continue;
+            };
+
+            let key_cal = kv[0];
+            let value_cal = kv[1].to_string();
+
+            log::trace!("processing {}:{}", &key_cal, &value_cal);
 
             match key_cal {
                 "PRODID" => {
@@ -184,6 +203,7 @@ impl Calendar {
                 "TRANSP" => {
                     even_temp.transp = value_cal;
                 }
+              
                 "DTSTART" => match convert_datetime(&value_cal, "%Y%m%dT%H%M%SZ") {
                     Ok(val) => {
                         even_temp.dtstart = val;
@@ -198,56 +218,52 @@ impl Calendar {
                         }
                         Err(_) => (),
                     }
+
                 }
-                "DTEND" => match convert_datetime(&value_cal, "%Y%m%dT%H%M%SZ") {
-                    Ok(val) => {
-                        even_temp.dtend = val;
-                    }
-                    Err(_) => (),
-                },
                 "DTEND;VALUE=DATE" => {
                     let time_cal = "T002611Z";
                     let aux_date = value_cal + time_cal;
-                    match convert_datetime(&aux_date, "%Y%m%dT%H%M%SZ") {
-                        Ok(val) => {
-                            even_temp.dtend = val;
-                        }
-                        Err(_) => (),
-                    }
+                    assign_if_ok!(
+                        even_temp.dtend,
+                        convert_datetime(&aux_date, "%Y%m%dT%H%M%SZ")
+                    );
                 }
-                "DTSTAMP" => match convert_datetime(&value_cal, "%Y%m%dT%H%M%SZ") {
-                    Ok(val) => {
-                        even_temp.dtstamp = val;
-                    }
-                    Err(_) => (),
-                },
-                "CREATED" => match convert_datetime(&value_cal, "%Y%m%dT%H%M%SZ") {
-                    Ok(val) => {
-                        even_temp.created = val;
-                    }
-                    Err(_) => (),
-                },
-                "LAST-MODIFIED" => match convert_datetime(&value_cal, "%Y%m%dT%H%M%SZ") {
-                    Ok(val) => {
-                        even_temp.last_modified = val;
-                    }
-                    Err(_) => (),
-                },
+                "DTSTAMP" => {
+                    assign_if_ok!(
+                        even_temp.dtstamp,
+                        convert_datetime(&value_cal, "%Y%m%dT%H%M%SZ")
+                    );
+                }
+                "CREATED" => {
+                    assign_if_ok!(
+                        even_temp.created,
+                        convert_datetime(&value_cal, "%Y%m%dT%H%M%SZ")
+                    );
+                }
+                "LAST-MODIFIED" => {
+                    assign_if_ok!(
+                        even_temp.last_modified,
+                        convert_datetime(&value_cal, "%Y%m%dT%H%M%SZ")
+                    );
+                }
                 "END" if value_cal == "VEVENT" => {
                     struct_even.push(even_temp.clone());
                 }
-                _ => (),
+                other => {
+                    log::debug!("unhandled key: {}", other);
+                }
             }
         }
-        Calendar {
-            prodid: prodid,
-            version: version,
-            calscale: calscale,
-            method: method,
-            x_wr_calname: x_wr_calname,
-            x_wr_timezone: x_wr_timezone,
+
+        Ok(Calendar {
+            prodid,
+            version,
+            calscale,
+            method,
+            x_wr_calname,
+            x_wr_timezone,
             events: struct_even,
-        }
+        })
     }
     ///Create your own iCalendar instance
     /// # Create an iCalendar
@@ -285,7 +301,7 @@ impl Calendar {
     /// let mut start_cal:  DateTime<Utc> = Utc::now();
     //  let date_tz: DateTime<Utc> = Utc::now();
     /// let start = date_tz.checked_add_signed(Duration::days(2));
-    ///   
+    ///
     /// match start {
     ///       Some(x) => {
     ///              start_cal = x;
@@ -306,7 +322,7 @@ impl Calendar {
     ///                    status:         "CONFIRMED".to_string(),
     ///                    summary:        "My business (Not available)".to_string(),
     ///                    transp:         "OPAQUE".to_string()
-    ///                    
+    ///
     ///    };
     /// let mut ical =  Calendar::create(
     ///                       "-//My Business Inc//My Calendar 70.9054//EN",
